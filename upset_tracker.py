@@ -1,12 +1,15 @@
 import discord
 from discord.ext import tasks
+
+from base_tracker import BaseTracker
 from start_gg import StartGG
 
-from math import log, floor, ceil
+import utilities
+
 import asyncio
 
 
-class UpsetTracker:
+class UpsetTracker(BaseTracker):
 
     def __init__(self, tourney: str, event: str, tourney_name: str, event_name: str, startgg_client: StartGG, channel: 'discord channel'):
         self._tourney = tourney
@@ -18,10 +21,10 @@ class UpsetTracker:
         self._minutes_since_last_change = 0
         self.complete = False
 
-        self.check_for_tourney_updates.start()
+        self.check_for_updates.start()
 
     @tasks.loop(seconds=60)
-    async def check_for_tourney_updates(self):
+    async def check_for_updates(self):
         """Checks for newly completed tournament sets every 60 seconds"""
         print("Checking for updates")
         current_page = 1
@@ -41,7 +44,7 @@ class UpsetTracker:
             if sets_dict['complete'] or self._minutes_since_last_change >= 2880:
                 self.complete = True
                 await self._channel.send("Event {} in {} is complete and upset tracking has stopped.".format(self._event_name, self._tourney_name))
-                self.check_for_tourney_updates.cancel()
+                self.check_for_updates.cancel()
                 return
 
             await self._send_upset_messages(sets_dict['sets'])
@@ -55,7 +58,7 @@ class UpsetTracker:
         """Checks if the lower seed won and sends messages to the Discord channel if so"""
         for tourney_set in sets:
             print("Set completed: {} - {}".format(tourney_set['entrant1Name'], tourney_set['entrant2Name']))
-            upset_factor = self._calculate_upset_factor(tourney_set['entrant1Seed'], tourney_set['entrant2Seed'])
+            upset_factor = utilities.calculate_upset_factor(tourney_set['entrant1Seed'], tourney_set['entrant2Seed'])
             if upset_factor > 0:
                 embed_title = "UPSET in {} {}".format(self._tourney_name, self._event_name)
                 winner_name = None
@@ -79,13 +82,3 @@ class UpsetTracker:
                     await self._channel.send(embed=discord.Embed(title=embed_title, description=embed_desc, color=discord.Color.blue()))
 
             await asyncio.sleep(1)
-
-    def _calculate_upset_factor(self, seed_1: int, seed_2: int) -> int:
-        """Uses the upset factor formula used on PGStats"""
-        return abs(self._calculate_losers_rounds_to_victory(seed_1) - self._calculate_losers_rounds_to_victory(seed_2))
-
-    def _calculate_losers_rounds_to_victory(self, seed: int) -> int:
-        if seed == 1:
-            return 0
-
-        return floor(log(seed - 1, 2)) + ceil(log(seed * (2 / 3), 2))
