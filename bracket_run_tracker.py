@@ -19,6 +19,7 @@ class BracketRunTracker(BaseTracker):
         self._startgg_client = startgg_client
         self._channel = channel
         self._minutes_since_last_change = 0
+        self._completed_sets = set()
         self.complete = False
 
         self.check_for_updates.start()
@@ -30,7 +31,7 @@ class BracketRunTracker(BaseTracker):
 
         while True:
             sets_dict = self._startgg_client.show_player_sets(self._player_id, self._event_id, current_page)
-            sets_num = len(sets_dict)
+            sets_num = len(sets_dict['sets'])
 
             if current_page == 1 and sets_num == 0:
                 self._minutes_since_last_change += 1
@@ -39,6 +40,8 @@ class BracketRunTracker(BaseTracker):
                 return
             else:
                 self._minutes_since_last_change = 0
+
+            await self._send_player_update_messages(sets_dict['sets'])
 
             if sets_dict['complete'] or self._minutes_since_last_change >= 2880:
                 self.complete = True
@@ -50,33 +53,34 @@ class BracketRunTracker(BaseTracker):
                 return
             current_page += 1
 
-    async def _send_player_update_messages(self, sets: dict) -> None:
+    async def _send_player_update_messages(self, sets: [dict]) -> None:
         for tourney_set in sets:
-            upset_factor = utilities.calculate_upset_factor(tourney_set['entrant1Seed'], tourney_set['entrant2Seed'])
-            if tourney_set['entrant1Players'][0]['playerId'] == self._player_id:
-                entrant_id = tourney_set['entrant1Players'][0]['entrantId']
-                player_score = tourney_set['entrant1Score']
-                opponent_score = tourney_set['entrant2Score']
-                opponent_name = tourney_set['entrant2Name']
-            else:
-                entrant_id = tourney_set['entrant2Players'][0]['entrantId']
-                player_score = tourney_set['entrant2Score']
-                opponent_score = tourney_set['entrant1Score']
-                opponent_name = tourney_set['entrant1Name']
+            if tourney_set['completed'] and tourney_set['id'] not in self._completed_sets:
+                upset_factor = utilities.calculate_upset_factor(tourney_set['entrant1Seed'], tourney_set['entrant2Seed'])
+                if tourney_set['entrant1Players'][0]['playerId'] == self._player_id:
+                    entrant_id = tourney_set['entrant1Players'][0]['entrantId']
+                    player_score = tourney_set['entrant1Score']
+                    opponent_score = tourney_set['entrant2Score']
+                    opponent_name = tourney_set['entrant2Name']
+                else:
+                    entrant_id = tourney_set['entrant2Players'][0]['entrantId']
+                    player_score = tourney_set['entrant2Score']
+                    opponent_score = tourney_set['entrant1Score']
+                    opponent_name = tourney_set['entrant1Name']
 
-            if tourney_set['winnerId'] == entrant_id:
-                embed_title = "{} DEFEATS {}".format(self._player_name, opponent_name)
-                embed_color = discord.Color.green()
-            elif player_score == -1:
-                embed_title = "{} HAS DQ'D".format(self._player_name)
-                embed_color = discord.Color.dark_gray()
-            else:
-                embed_title = "{} LOSES TO {}".format(self._player_name, opponent_name)
-                embed_color = discord.Color.red()
+                if tourney_set['winnerId'] == entrant_id:
+                    embed_title = "{} DEFEATS {}".format(self._player_name, opponent_name)
+                    embed_color = discord.Color.green()
+                elif player_score == -1:
+                    embed_title = "{} HAS DQ'D".format(self._player_name)
+                    embed_color = discord.Color.dark_gray()
+                else:
+                    embed_title = "{} LOSES TO {}".format(self._player_name, opponent_name)
+                    embed_color = discord.Color.red()
 
-            embed_desc = "Tournament: {}\nEvent: {}\nScore: {} - {}".format(self._tourney_name, self._event_name, player_score, opponent_score)
-            if upset_factor > 0:
-                embed_desc += "\nUpset Factor: {}".format(upset_factor)
-            await self._channel.send(embed=discord.Embed(title=embed_title, description=embed_desc, color=embed_color))
+                embed_desc = "Tournament: {}\nEvent: {}\nScore: {} - {}".format(self._tourney_name, self._event_name, player_score, opponent_score)
+                if upset_factor > 0:
+                    embed_desc += "\nUpset Factor: {}".format(upset_factor)
+                await self._channel.send(embed=discord.Embed(title=embed_title, description=embed_desc, color=embed_color))
 
             await asyncio.sleep(1)

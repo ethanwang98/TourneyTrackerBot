@@ -32,10 +32,11 @@ class TrackerBot(commands.Bot):
                     player_id = self._startgg_client.find_player_in_bracket(event_data['event_id'], arg2)
                     if player_id is not None:
                         if player_id not in self._player_tournies:
-                            self._player_tournies[player_id] = {event_data['event_id']: BracketRunTracker(event_data['event_id'], player_id, event_data['tourney_name'], event_data['event_name'], self._startgg_client, ctx.channel)}
+                            self._player_tournies[player_id] = {event_data['event_id']: BracketRunTracker(event_data['event_id'], player_id, event_data['tourney_name'], event_data['event_name'], arg2, self._startgg_client, ctx.channel)}
+                            await ctx.channel.send("Now tracking bracket run for player '{}' for event {} in {}".format(arg2, event_data['event_name'], event_data['tourney_name']))
                         else:
                             if event_data['event_id'] not in self._player_tournies[player_id]:
-                                self._player_tournies[player_id][event_data['event_id']] = BracketRunTracker(event_data['event_id'], player_id, event_data['tourney_name'], event_data['event_name'], self._startgg_client, ctx.channel)
+                                self._player_tournies[player_id][event_data['event_id']] = BracketRunTracker(event_data['event_id'], player_id, event_data['tourney_name'], event_data['event_name'], arg2, self._startgg_client, ctx.channel)
                                 await ctx.channel.send("Now tracking bracket run for player '{}' for event {} in {}".format(arg2, event_data['event_name'], event_data['tourney_name']))
                             else:
                                 await ctx.channel.send("Already tracking this bracket for player '{}'".format(arg2))
@@ -100,11 +101,13 @@ class TrackerBot(commands.Bot):
         @self.command(name="test", pass_context=True)
         async def test_query(ctx):
             # todo: remove this function right before revealing the bot to the public
-            metadata = self._startgg_client.show_event_metadata("versus-reborn-202", "smash-ultimate-singles")
-            player_id = self._startgg_client.find_player_in_bracket(metadata['event_id'], "Phire")
+            metadata = self._startgg_client.show_event_metadata("smash-at-the-made-111-every-thursday", "smash-ultimate-singles")
+            print(metadata)
+            player_id = self._startgg_client.find_player_in_bracket(metadata['event_id'], "ayden")
             print(self._startgg_client.show_player_sets(player_id, metadata['event_id'], 1))
             #await ctx.channel.send(embed=discord.Embed(title="UPSET", description="Player A 2-0 Player B\nUpset Factor 3", color=discord.Color.blue()))
-            #sets = self._startgg_client.tournament_show_sets("brick-d-up-5", "ultimate-singles", 1)
+            sets = self._startgg_client.tournament_show_sets("brick-d-up-5", "ultimate-singles", 1)
+            print(sets)
             #for s in sets['sets']:
                 #print(s['entrant1Name'] + " - " + s['entrant2Name'])
 

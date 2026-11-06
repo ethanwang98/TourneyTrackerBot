@@ -19,6 +19,7 @@ class UpsetTracker(BaseTracker):
         self._startgg_client = startgg_client
         self._channel = channel
         self._minutes_since_last_change = 0
+        self._completed_sets = set()
         self.complete = False
 
         self.check_for_updates.start()
@@ -54,31 +55,33 @@ class UpsetTracker(BaseTracker):
                 return
             current_page += 1
 
-    async def _send_upset_messages(self, sets: dict) -> None:
+    async def _send_upset_messages(self, sets: [dict]) -> None:
         """Checks if the lower seed won and sends messages to the Discord channel if so"""
         for tourney_set in sets:
-            print("Set completed: {} - {}".format(tourney_set['entrant1Name'], tourney_set['entrant2Name']))
-            upset_factor = utilities.calculate_upset_factor(tourney_set['entrant1Seed'], tourney_set['entrant2Seed'])
-            if upset_factor > 0:
-                embed_title = "UPSET in {} {}".format(self._tourney_name, self._event_name)
-                winner_name = None
-                winner_score = None
-                loser_name = None
-                loser_score = None
+            if tourney_set['completed'] and tourney_set['id'] not in self._completed_sets:
+                self._completed_sets.add(tourney_set['id'])
+                print("Set completed: {} - {}".format(tourney_set['entrant1Name'], tourney_set['entrant2Name']))
+                upset_factor = utilities.calculate_upset_factor(tourney_set['entrant1Seed'], tourney_set['entrant2Seed'])
+                if upset_factor > 0:
+                    embed_title = "UPSET in {} {}".format(self._tourney_name, self._event_name)
+                    winner_name = None
+                    winner_score = None
+                    loser_name = None
+                    loser_score = None
 
-                if tourney_set['winnerId'] == tourney_set['entrant1Id'] and tourney_set['entrant1Seed'] > tourney_set['entrant2Seed'] and tourney_set['entrant2Score'] > -1:
-                    winner_name = tourney_set['entrant1Name']
-                    winner_score = tourney_set['entrant1Score']
-                    loser_name = tourney_set['entrant2Name']
-                    loser_score = tourney_set['entrant2Score']
-                elif tourney_set['winnerId'] == tourney_set['entrant2Id'] and tourney_set['entrant2Seed'] > tourney_set['entrant1Seed'] and tourney_set['entrant1Score'] > -1:
-                    winner_name = tourney_set['entrant2Name']
-                    winner_score = tourney_set['entrant2Score']
-                    loser_name = tourney_set['entrant1Name']
-                    loser_score = tourney_set['entrant1Score']
+                    if tourney_set['winnerId'] == tourney_set['entrant1Id'] and tourney_set['entrant1Seed'] > tourney_set['entrant2Seed'] and tourney_set['entrant2Score'] > -1:
+                        winner_name = tourney_set['entrant1Name']
+                        winner_score = tourney_set['entrant1Score']
+                        loser_name = tourney_set['entrant2Name']
+                        loser_score = tourney_set['entrant2Score']
+                    elif tourney_set['winnerId'] == tourney_set['entrant2Id'] and tourney_set['entrant2Seed'] > tourney_set['entrant1Seed'] and tourney_set['entrant1Score'] > -1:
+                        winner_name = tourney_set['entrant2Name']
+                        winner_score = tourney_set['entrant2Score']
+                        loser_name = tourney_set['entrant1Name']
+                        loser_score = tourney_set['entrant1Score']
 
-                if winner_name is not None and winner_score is not None and loser_name is not None and loser_score is not None:
-                    embed_desc = "{} {} - {} {}\nUpset Factor: {}".format(winner_name, winner_score, loser_score, loser_name, upset_factor)
-                    await self._channel.send(embed=discord.Embed(title=embed_title, description=embed_desc, color=discord.Color.blue()))
+                    if winner_name is not None and winner_score is not None and loser_name is not None and loser_score is not None:
+                        embed_desc = "{} {} - {} {}\nUpset Factor: {}".format(winner_name, winner_score, loser_score, loser_name, upset_factor)
+                        await self._channel.send(embed=discord.Embed(title=embed_title, description=embed_desc, color=discord.Color.blue()))
 
             await asyncio.sleep(1)
